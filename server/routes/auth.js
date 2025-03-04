@@ -60,10 +60,30 @@ router.post("/login", async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-
-    res.status(200).json({ message: "Login successful", token });
+    
+    // Send token & user info (including username)
+    res.status(200).json({ token, user: { username: user.username, email: user.email } });
   } catch (error) {
     console.error("Login error:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+});
+
+// Endpoint to fetch user details (if needed later)
+router.get("/getUser", async (req, res) => {
+  try {
+    const { email } = req.query;  // Getting email from query params
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Send user data (username and other details if needed)
+    res.status(200).json({ username: user.username });
+  } catch (error) {
+    console.error("Error fetching user data:", error);
     res.status(500).json({ message: "Something went wrong" });
   }
 });
