@@ -1,3 +1,4 @@
+// middleware/auth.js
 const jwt = require('jsonwebtoken');
 
 const protect = (req, res, next) => {
@@ -16,3 +17,4 @@ const protect = (req, res, next) => {
 };
 
 module.exports = protect;
+

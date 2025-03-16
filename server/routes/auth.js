@@ -1,91 +1,93 @@
 const express = require("express");
+const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
 
 const router = express.Router();
+//const JWT_SECRET = process.env.JWT_SECRET; // Change this in production
 
-// Signup Route
+// Register a new user
 router.post("/signup", async (req, res) => {
+  const { username, email, password } = req.body;
+  
   try {
-    console.log("Received Data:", req.body); // Debugging
-    const { username, email, password } = req.body;
-
-    // Validate input
-    if (!username || !email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    // Check if the user already exists (by email or username)
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
-      return res.status(400).json({ message: "Email already registered" });
+      return res.status(400).json({ message: "User already registered. Please log in." });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Create and save new user
+    const user = new User({ username, email, password });
+    await user.save();
 
-    // Save user in database
-    const newUser = new User({ username, email, password: hashedPassword });
-    await newUser.save();
-
-    res.status(201).json({ message: "User registered successfully" });
+    res.status(201).json({ message: "User registered successfully!" });
   } catch (error) {
-    console.error("Signup error:", error);
-    res.status(500).json({ message: "Something went wrong" });
+    res.status(400).json({ message: error.message });
   }
 });
 
-// Login Route
+// Login user
 router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required." });
+  }
+
   try {
-    const { email, password } = req.body;
-
-    // Validate input
-    if (!email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    // Find user by email
     const user = await User.findOne({ email });
+
     if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      console.log(`No user found for email: ${email}`);
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Compare passwords
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await user.matchPassword(password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      console.log(`Password mismatch for user: ${email}`);
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
     // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    
-    // Send token & user info (including username)
-    res.status(200).json({ token, user: { username: user.username, email: user.email } });
+    const token = jwt.sign({ id: user._id, email: user.email, name: user.username }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.status(200).json({ message: 'Login successful', token, user });
   } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ message: "Something went wrong" });
+    console.error('Error during login:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Endpoint to fetch user details (if needed later)
+// Protect routes using JWT middleware to get user data
 router.get("/getUser", async (req, res) => {
-  try {
-    const { email } = req.query;  // Getting email from query params
+  const token = req.headers["authorization"]?.split(" ")[1]; // Retrieve token from the Authorization header
 
-    // Find user by email
-    const user = await User.findOne({ email });
+  if (!token) {
+    return res.status(401).json({ message: "Authorization token is required" });
+  }
+
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Fetch the user based on the decoded token data (user id)
+    const user = await User.findById(decoded.id);
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Send user data (username and other details if needed)
-    res.status(200).json({ username: user.username });
-  } catch (error) {
-    console.error("Error fetching user data:", error);
-    res.status(500).json({ message: "Something went wrong" });
+    // Send back the user data (but not the password)
+    res.json({
+      username: user.username,
+      email: user.email,
+      _id: user._id,
+    });
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token" });
   }
 });
 
 module.exports = router;
+
+

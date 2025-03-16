@@ -1,27 +1,29 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const dotenv = require("dotenv");
 const cors = require("cors");
+require("dotenv").config();
 
-require("dotenv").config(); // Load environment variables
+const authRoutes = require('./routes/auth');
 
-const authRoutes = require("./routes/auth"); // Import auth routes
+const foodRoutes = require("./routes/foodRoutes");
+const cosmeticRoutes = require("./routes/cosmeticRoutes");
+const tipRoutes = require("./routes/tipRoutes");
 
 const app = express();
 
 // Middleware
-app.use(express.json()); // Parse JSON requests
-app.use(cors()); // Allow cross-origin requests
+app.use(express.json());
+app.use(cors());
+app.use('/auth', authRoutes);
 
-// Routes
-app.use("/auth", authRoutes); 
+// Conectar a MongoDB
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch(err => console.log("❌ MongoDB Connection Error:", err));
 
-// Database Connection
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.error("MongoDB connection error:", err));
+app.use("/api/food", foodRoutes);
+app.use("/api/cosmetic", cosmeticRoutes);
+app.use("/api/tip", tipRoutes);
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = process.env.PORT;
+app.listen(PORT, () => console.log(`Servidor corriendo en el puerto ${PORT}`));
